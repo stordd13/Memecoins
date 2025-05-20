@@ -1,14 +1,12 @@
 from pycoingecko import CoinGeckoAPI
 import pandas as pd
-import time
-from tqdm import tqdm
-from utils import retry_with_backoff
+from src.utils.retry import retry_with_backoff
 
 def get_memecoins(num_pages=1):
     cg = CoinGeckoAPI()
     all_memecoins = []
 
-    for page in tqdm(range(1, num_pages + 1), desc="Fetching pages from CoinGecko", dynamic_ncols=True):
+    for page in range(1, num_pages + 1):
         def call():
             return cg.get_coins_markets(
                 vs_currency='usd',
@@ -28,10 +26,8 @@ def get_memecoins(num_pages=1):
             break
 
         all_memecoins.extend(memecoins)
-        # time.sleep(1.2)
 
     return pd.DataFrame(all_memecoins)
-
 
 def get_coin_snapshot(coin_id):
     cg = CoinGeckoAPI()
