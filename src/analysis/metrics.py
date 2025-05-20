@@ -30,6 +30,34 @@ def compute_metrics(df: pl.DataFrame) -> dict:
         "max_drawdown": max_dd
     }
 
+def label_performers(metrics_df: pl.DataFrame, top_pct: float = 0.1) -> pl.DataFrame:
+    """
+    Label top and bottom performers based on returns.
+    
+    Args:
+        metrics_df: DataFrame with at least 'return' column
+        top_pct: Percentage of top/bottom performers to label (default: 0.1)
+        
+    Returns:
+        DataFrame with added 'performance_label' column
+    """
+    # Sort by return
+    sorted_df = metrics_df.sort("return")
+    
+    # Calculate thresholds
+    top_threshold = sorted_df["return"].quantile(1 - top_pct)
+    bottom_threshold = sorted_df["return"].quantile(top_pct)
+    
+    # Add labels
+    return sorted_df.with_columns([
+        pl.when(pl.col("return") >= top_threshold)
+        .then(pl.lit("top_performer"))
+        .when(pl.col("return") <= bottom_threshold)
+        .then(pl.lit("worst_performer"))
+        .otherwise(pl.lit("average"))
+        .alias("performance_label")
+    ])
+
 def extract_features(df: pl.DataFrame, early_days: int = 3, full_days: list = [30, 90, 180, 365]) -> dict:
     """
     Extract features from a memecoin DataFrame.
