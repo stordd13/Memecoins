@@ -1,0 +1,2 @@
+2025-05-19 22:26:02,242 - INFO - Starting pipeline: N=-1, frequencies=['hourly'], output_dir=full_hourly_data/
+2025-05-19 22:26:02,242 - INFO - Fetching memecoin list from CoinGecko

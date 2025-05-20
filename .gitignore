@@ -5,6 +5,7 @@ env/
 .env/
 
 # Data folders
+data/
 daily_data_1000/
 hourly_data_300/
 
