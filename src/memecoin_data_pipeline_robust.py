@@ -7,13 +7,14 @@ from tqdm import tqdm
 from memecoin_utils import get_memecoins, get_coin_history
 from utils import setup_logging, retry_with_backoff, get_processed_files
 
+
 def main():
     parser = argparse.ArgumentParser(description="Memecoin Data Pipeline (History Only)")
     parser.add_argument('-n', '--num', type=int, default=100, help='Number of memecoins to fetch (-1 for all)')
-    parser.add_argument('-f', '--frequencies', nargs='+', default=['daily'], help="Frequencies to fetch")
+    parser.add_argument('-f', '--frequencies', nargs='+', default=['daily'], help="Frequencies to fetch (daily, hourly, minute)")
     parser.add_argument('--output', type=str, default='data', help='Output directory')
     parser.add_argument('--resume', action='store_true', help='Resume from checkpoint')
-    parser.add_argument('--retry-delay', type=int, default=2)
+    parser.add_argument('--retry-delay', type=int, default=1.2)
     parser.add_argument('--max-retries', type=int, default=5)
     args = parser.parse_args()
 
@@ -43,7 +44,7 @@ def main():
     # Fetch memecoin list
     logger.info("Fetching memecoin list from CoinGecko")
     if N == -1:
-        num_pages = 100  # fetch up to 25,000 tokens
+        num_pages = 100  # max coverage
     else:
         num_pages = (N // 250) + 1
 
@@ -53,6 +54,7 @@ def main():
 
     memecoins_df["fetch_rank"] = memecoins_df.index
     memecoins_df["fetched_at"] = pd.Timestamp.utcnow()
+
     os.makedirs(output_dir, exist_ok=True)
     memecoins_df.to_parquet(f'{output_dir}/memecoins_list.parquet')
     logger.info(f"Saved {len(memecoins_df)} memecoins to memecoins_list.parquet")
@@ -62,8 +64,8 @@ def main():
     history_errors = []
     insufficient_data = []
 
-    for coin_id in tqdm(memecoins_df['id'], desc="Fetching historical data"):
-        for freq in frequencies:
+    for coin_id in tqdm(memecoins_df['id'], desc="Fetching history by coin", dynamic_ncols=True):
+        for freq in tqdm(frequencies, leave=False, desc=f"↳ {coin_id}", dynamic_ncols=True):
             if coin_id in processed_history[freq]:
                 continue
             try:
@@ -84,15 +86,18 @@ def main():
                 logger.error(f"Error fetching {freq} history for {coin_id}: {str(e)}")
             time.sleep(retry_delay)
 
-    # Save failed coin IDs
-    if history_errors or insufficient_data:
+    # Save list of missing/failed coins
+    missing_set = set(x[0] for x in history_errors) | set(insufficient_data)
+    if missing_set:
         with open(f"{output_dir}/missing_history.txt", "w") as f:
-            for coin_id in set(x[0] for x in history_errors) | set(insufficient_data):
+            for coin_id in sorted(missing_set):
                 f.write(f"{coin_id}\n")
 
-    logger.info(f"Successfully fetched history for {len(memecoins_df) - len(insufficient_data) - len(history_errors)} coins")
+    logger.info(f"Successfully fetched history for {len(memecoins_df) - len(missing_set)} coins")
     logger.info(f"Missing/invalid history: {len(insufficient_data)}")
     logger.info(f"Errors during fetch: {len(history_errors)}")
+    logger.info("Pipeline completed.")
+
 
 if __name__ == '__main__':
     main()
